@@ -7,11 +7,16 @@ global using System.Threading;
 global using System.Threading.Tasks;
 
 global using Microsoft;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.ServiceHub.Framework;
+
 global using Microsoft.VisualStudio.Extensibility;
 global using Microsoft.VisualStudio.Extensibility.Commands;
 global using Microsoft.VisualStudio.Extensibility.Documents;
 global using Microsoft.VisualStudio.Extensibility.Helpers;
 global using Microsoft.VisualStudio.Extensibility.Shell;
-global using Microsoft.Extensions.DependencyInjection;
+
+global using Microsoft.VisualStudio.ProjectSystem;
+global using Microsoft.VisualStudio.ProjectSystem.Query;
 
 
