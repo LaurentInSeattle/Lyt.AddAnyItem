@@ -55,37 +55,74 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
     /// <inheritdoc />
     public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
     {
-        if (context is not ClientContext clientContext)
+        try
         {
-            return;
-        }
+            if (context is not ClientContext clientContext)
+            {
+                return;
+            }
 
-        Uri selectedPathUri = await clientContext.GetSelectedPathAsync(cancellationToken);
-        if (!selectedPathUri.IsFile)
-        {
-            await this.OutputWriteLineAsync("Invalid Uri: " + selectedPathUri.ToString());
-        }
+            Uri selectedPathUri = await clientContext.GetSelectedPathAsync(cancellationToken);
+            if (!selectedPathUri.IsFile)
+            {
+                await this.OutputWriteLineAsync("Invalid Uri: " + selectedPathUri.ToString());
+            }
 
-        await this.OutputWriteLineAsync("Uri: " + selectedPathUri.ToString());
-        var projectInfo = await this.CreateProjectInfoAsync(selectedPathUri, cancellationToken);
-        if (!projectInfo.Validate())
-        {
             await this.OutputWriteLineAsync("Uri: " + selectedPathUri.ToString());
-            return;
+            var projectInfo = await this.CreateProjectInfoAsync(selectedPathUri, cancellationToken);
+            if (!projectInfo.Validate())
+            {
+                await this.OutputWriteLineAsync("Uri: " + selectedPathUri.ToString());
+                return;
+            }
+
+            // TODO: Launch dialog to get the Item kind and name, hardcoded for now 
+            string selectedItemKind = "ViewViewModel";
+            string selectedItemName = "Shell";
+
+            bool filesGenerated = await this.GenerateFilesFromTemplatesAsync(projectInfo, selectedItemKind, selectedItemName);
+            if (!filesGenerated)
+            {
+                await this.OutputWriteLineAsync("Failed to create files from templates: " + selectedPathUri.ToString());
+                return;
+            }
+
+            string destinationProjectPath = projectInfo.SelectedDirectory;
+
+            // Add the source files to the destination project.
+            async Task AddSourceFileAsync(string sourceFilePath)
+            {
+                FileInfo fileInfo = new(sourceFilePath);   
+                string content = File.ReadAllText(sourceFilePath);
+                string sourceFileName = fileInfo.Name;
+                string targetFilePath = Path.Combine(destinationProjectPath, sourceFileName);
+                await this.Extensibility.Workspaces().UpdateProjectsAsync(
+                    project => project.Where(project => project.Name == projectInfo.ProjectName),
+                    project => project.CreateFile(targetFilePath, content),
+                    cancellationToken);
+            }
+
+            foreach (string file in projectInfo.GeneratedFiles)
+            {
+                await AddSourceFileAsync(file);
+                await this.OutputWriteLineAsync("Added to project: " + file);
+            }
+
+            // Save and Rebuild everything 
+            IQueryResults<ISolutionSnapshot> solutions =
+                await this.Extensibility.Workspaces().QuerySolutionAsync(s => s, cancellationToken);
+            foreach (var solution in solutions)
+            {
+                await solution.SaveAsync(cancellationToken);
+                await solution.AsQueryable().BuildAsync(cancellationToken);
+            }
+
+            await this.OutputWriteLineAsync("Add Item Complete: " + selectedItemKind + "  -  " + selectedItemName);
         }
-
-        // TODO: Launch dialog to get the Item kind and name, hardcoded for now 
-        string selectedItemKind = "ViewViewModel";
-        string selectedItemName = "Shell";
-
-        bool filesGenerated = await this.GenerateFilesFromTemplatesAsync(projectInfo, selectedItemKind, selectedItemName);
-        if (!filesGenerated)
+        catch (Exception ex)
         {
-            await this.OutputWriteLineAsync("Failed to create files from templates: " + selectedPathUri.ToString());
-            return;
+            await this.OutputWriteLineAsync("Add Any Item, Exception thrown: \n" + ex.ToString());
         }
-
-        // await this.Extensibility.Shell().ShowPromptAsync("Hello from an extension!", PromptOptions.OK, cancellationToken);
     }
 
     private async Task<ProjectInformation> CreateProjectInfoAsync(Uri selectedPathUri, CancellationToken cancellationToken)
@@ -175,11 +212,6 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 foundProject = true;
                 break;
             }
-
-            //foreach (var file in project.Files)
-            //{
-            //    _ = message.Append(CultureInfo.CurrentCulture, $" \t {file.FileName} \t {file.Path}\n");
-            //}
         }
 
         if (!foundProject)
@@ -271,6 +303,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 string sourceText = File.ReadAllText(sourceFile);
                 string targetText = sourceText.Replace(TemplateNameKey, selectedItemName);
                 string namespaceString = projectInformation.ProjectNamespace;
+                // TODO: Add folder to name space 
                 targetText = targetText.Replace(TemplateNamespaceKey, namespaceString);
 
                 FileInfo fileInfo = new(sourceFile);
@@ -298,6 +331,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 return false;
             }
 
+            projectInformation.GeneratedFiles = generatedFiles;
             return true;
         }
         catch (Exception ex)

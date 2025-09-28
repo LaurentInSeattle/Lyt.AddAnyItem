@@ -14,6 +14,8 @@ public sealed class ProjectInformation()
 
     public string ProjectNamespace { get; set; } = "";
 
+    public List<string> GeneratedFiles { get; set; } = [];
+
     public bool Validate()
     {
         // TODO ! 
