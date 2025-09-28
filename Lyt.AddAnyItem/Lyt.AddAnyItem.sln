@@ -5,6 +5,15 @@ VisualStudioVersion = 17.14.36518.9
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lyt.AddAnyItem", "Lyt.AddAnyItem.csproj", "{EC92C430-893E-4C5C-86C0-C476761F014E}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SampleTemplates", "SampleTemplates", "{DCC944A7-CD02-9CE5-C3E5-4E5182BC15BE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ViewViewModel", "ViewViewModel", "{21361F2E-CC5A-D983-DC2B-61BB04AE84F9}"
+	ProjectSection(SolutionItems) = preProject
+		..\SampleTemplates\ViewViewModel\{Name}View.xaml = ..\SampleTemplates\ViewViewModel\{Name}View.xaml
+		..\SampleTemplates\ViewViewModel\{Name}View.xaml.cs = ..\SampleTemplates\ViewViewModel\{Name}View.xaml.cs
+		..\SampleTemplates\ViewViewModel\{Name}ViewModel.cs = ..\SampleTemplates\ViewViewModel\{Name}ViewModel.cs
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,6 +27,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{21361F2E-CC5A-D983-DC2B-61BB04AE84F9} = {DCC944A7-CD02-9CE5-C3E5-4E5182BC15BE}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F288C01B-1AD2-4BB7-8D49-8C800E846877}

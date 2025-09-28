@@ -1,6 +1,6 @@
 ﻿namespace Lyt.AddAnyItem;
 
-using static ClientContextKey;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 /// <summary> AddAnyItemCommand handler. </summary>
 /// <remarks> Initializes a new instance of the <see cref="AddAnyItemCommand"/> class. </remarks>
@@ -10,7 +10,8 @@ using static ClientContextKey;
 #pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW 
 public class AddAnyItemCommand(TraceSource traceSource) : Command
 {
-    private const string TemplatesFolderName = "AddAnyItemTemplates";
+    private const string OrgFolderName = "Lyt";
+    private const string TemplatesFolderName = "AddAnyItem";
     private const string GeneratedFolderName = "Generated";
     private const string TemplateNameKey = "{Name}";
     private const string TemplateNamespaceKey = "{Namespace}";
@@ -59,44 +60,54 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
         {
             if (context is not ClientContext clientContext)
             {
+                await this.OutputWriteLineAsync("Add Any Item Aborted: No Client Context");
                 return;
             }
 
             Uri selectedPathUri = await clientContext.GetSelectedPathAsync(cancellationToken);
             if (!selectedPathUri.IsFile)
             {
-                await this.OutputWriteLineAsync("Invalid Uri: " + selectedPathUri.ToString());
+                await this.OutputWriteLineAsync("Add Any Item Aborted: Invalid Uri: " + selectedPathUri.ToString());
+                return;
             }
 
             await this.OutputWriteLineAsync("Uri: " + selectedPathUri.ToString());
-            var projectInfo = await this.CreateProjectInfoAsync(selectedPathUri, cancellationToken);
+            var workspaces = this.Extensibility.Workspaces();
+            var projectInfo = await this.CreateProjectInfoAsync(workspaces, selectedPathUri, cancellationToken);
             if (!projectInfo.Validate())
             {
                 await this.OutputWriteLineAsync("Uri: " + selectedPathUri.ToString());
                 return;
             }
 
+            List<string> templateNames = EnumerateExistingTemplateFolders(out string message);
+            if (templateNames.Count == 0)
+            {
+                await this.OutputWriteLineAsync("Add Any Item Aborted: " + message);
+                return;
+            }
+
             // TODO: Launch dialog to get the Item kind and name, hardcoded for now 
-            string selectedItemKind = "ViewViewModel";
+            string selectedItemKind = "Avalonia View ViewModel";
             string selectedItemName = "Shell";
 
             bool filesGenerated = await this.GenerateFilesFromTemplatesAsync(projectInfo, selectedItemKind, selectedItemName);
             if (!filesGenerated)
             {
-                await this.OutputWriteLineAsync("Failed to create files from templates: " + selectedPathUri.ToString());
+                await this.OutputWriteLineAsync("Add Any Item Aborted: Failed to create project files from templates: " + selectedPathUri.ToString());
                 return;
             }
 
             string destinationProjectPath = projectInfo.SelectedDirectory;
 
-            // Add the source files to the destination project.
+            // Add the newly created source files to the destination project.
             async Task AddSourceFileAsync(string sourceFilePath)
             {
-                FileInfo fileInfo = new(sourceFilePath);   
+                FileInfo fileInfo = new(sourceFilePath);
                 string content = File.ReadAllText(sourceFilePath);
                 string sourceFileName = fileInfo.Name;
                 string targetFilePath = Path.Combine(destinationProjectPath, sourceFileName);
-                await this.Extensibility.Workspaces().UpdateProjectsAsync(
+                await workspaces.UpdateProjectsAsync(
                     project => project.Where(project => project.Name == projectInfo.ProjectName),
                     project => project.CreateFile(targetFilePath, content),
                     cancellationToken);
@@ -105,27 +116,28 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             foreach (string file in projectInfo.GeneratedFiles)
             {
                 await AddSourceFileAsync(file);
-                await this.OutputWriteLineAsync("Added to project: " + file);
+                await this.OutputWriteLineAsync("Add Any Item: Added to project: " + file);
             }
 
             // Save and Rebuild everything 
-            IQueryResults<ISolutionSnapshot> solutions =
-                await this.Extensibility.Workspaces().QuerySolutionAsync(s => s, cancellationToken);
+            IQueryResults<ISolutionSnapshot> solutions = await workspaces.QuerySolutionAsync(s => s, cancellationToken);
             foreach (var solution in solutions)
             {
                 await solution.SaveAsync(cancellationToken);
                 await solution.AsQueryable().BuildAsync(cancellationToken);
             }
 
+            // success 
             await this.OutputWriteLineAsync("Add Item Complete: " + selectedItemKind + "  -  " + selectedItemName);
         }
         catch (Exception ex)
         {
-            await this.OutputWriteLineAsync("Add Any Item, Exception thrown: \n" + ex.ToString());
+            await this.OutputWriteLineAsync("Add Any Item Aborted: Exception thrown: \n" + ex.ToString());
         }
     }
 
-    private async Task<ProjectInformation> CreateProjectInfoAsync(Uri selectedPathUri, CancellationToken cancellationToken)
+    private async Task<ProjectInformation> CreateProjectInfoAsync(
+        WorkspacesExtensibility workspaces, Uri selectedPathUri, CancellationToken cancellationToken)
     {
         ProjectInformation projectInfo = new();
 
@@ -163,9 +175,8 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             return projectInfo;
         }
 
-        StringBuilder message = new($"\n \n === Querying === \n");
-
-        var solutionQuery = await this.Extensibility.Workspaces().QuerySolutionAsync(
+        StringBuilder message = new($"\n \n  Querying Workspaces \n");
+        var solutionQuery = await workspaces.QuerySolutionAsync(
             solution => solution.With(solution => solution.Directory),
             cancellationToken);
         ISolutionSnapshot? solutionSnapshot = solutionQuery.FirstOrDefault();
@@ -183,7 +194,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
         projectInfo.SolutionDirectory = solutionSnapshot.Directory;
 
         bool foundProject = false;
-        var projects = await this.Extensibility.Workspaces().QueryProjectsAsync(
+        var projects = await workspaces.QueryProjectsAsync(
             project => project.With(project => project.Name)
                               .With(project => project.Path)
                               .With(project => project.DefaultNamespace)
@@ -230,6 +241,68 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
         return projectInfo;
     }
 
+    private static List<string> EnumerateExistingTemplateFolders(out string message)
+    {
+        message = string.Empty;
+        List<string> empty = [];
+        List<string> templateFolders = [];
+        try
+        {
+            // Make sure we have a templates folder 
+            string documentsFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
+            string orgFolderPath = Path.Combine(documentsFolderPath, OrgFolderName);
+            string templatesFolderPath = Path.Combine(orgFolderPath, TemplatesFolderName);
+            DirectoryInfo templatesDirectoryInfo = new(templatesFolderPath);
+            if (!templatesDirectoryInfo.Exists)
+            {
+                message = "EnumerateExistingTemplateFolders: No templates folder";
+                return empty;
+            }
+
+            // Enumerate directories 
+            List<string> directoryPaths = templatesFolderPath.EnumerateDirectories();
+            EnumerationOptions enumerationOptions = new()
+            {
+                IgnoreInaccessible = true,
+                RecurseSubdirectories = false,
+            };
+
+            foreach (string directoryPath in directoryPaths)
+            {
+                // Assuminf that we have too few files to bother with creating threads 
+                // Enumerate files and Make sure that there is at least one template file
+                var files = directoryPath.EnumerateFiles(enumerationOptions);
+                int validTemplateFilesCount = 0;
+                foreach (string file in files)
+                {
+                    if (file.Contains(TemplateNameKey, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        ++validTemplateFilesCount;
+                    }
+                }
+
+                if (validTemplateFilesCount > 0)
+                {
+                    DirectoryInfo directoryPathInfo = new(directoryPath);
+                    templateFolders.Add(directoryPathInfo.Name);
+                }
+            }
+
+            if (templateFolders.Count == 0)
+            {
+                message = "EnumerateExistingTemplateFolders: No valid templates \n";
+                return empty;
+            }
+
+            return templateFolders;
+        }
+        catch (Exception ex)
+        {
+            message = "EnumerateExistingTemplateFolders: Exception thrown: \n" + ex.ToString();
+            return empty;
+        }
+    }
+
     private async Task<bool> GenerateFilesFromTemplatesAsync(
         ProjectInformation projectInformation,
         string selectedItemKind,
@@ -239,14 +312,16 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             string.IsNullOrWhiteSpace(selectedItemKind) ||
             string.IsNullOrWhiteSpace(selectedItemName))
         {
-            await this.OutputWriteLineAsync("GenerateFilesFromTemplates: Inavlid parameters");
+            await this.OutputWriteLineAsync("GenerateFilesFromTemplates: Invalid parameters");
             return false;
         }
 
         try
         {
-            // 1 - Make sure we have a templates folder 
-            string templatesFolder = Path.Combine(projectInformation.SolutionDirectory, TemplatesFolderName);
+            // 1 - Make sure maybe again we have a templates folder 
+            string documentsFolder = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
+            string orgFolder = Path.Combine(documentsFolder, OrgFolderName);
+            string templatesFolder = Path.Combine(orgFolder, TemplatesFolderName);
             DirectoryInfo templatesDirectory = new(templatesFolder);
             if (!templatesDirectory.Exists)
             {
