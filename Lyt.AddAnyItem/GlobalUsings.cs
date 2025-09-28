@@ -16,6 +16,7 @@ global using Microsoft.VisualStudio.Extensibility.Commands;
 global using Microsoft.VisualStudio.Extensibility.Documents;
 global using Microsoft.VisualStudio.Extensibility.Helpers;
 global using Microsoft.VisualStudio.Extensibility.Shell;
+global using Microsoft.VisualStudio.Extensibility.UI;
 
 global using Microsoft.VisualStudio.ProjectSystem;
 global using Microsoft.VisualStudio.ProjectSystem.Query;

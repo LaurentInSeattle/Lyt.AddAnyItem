@@ -1,11 +1,23 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
 	<TargetFramework>net8.0-windows</TargetFramework>
 	<ImplicitUsings>enable</ImplicitUsings>
 	<Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
+	<None Remove="AddAnyItemDialog.xaml" />
+	<None Remove="Resources\DialogResources.xaml" />
+  </ItemGroup>
+  <ItemGroup>
+	<EmbeddedResource Include="AddAnyItemDialog.xaml">
+	  <Generator>MSBuild:Compile</Generator>
+	</EmbeddedResource>
+	<EmbeddedResource Include="Resources\DialogResources.xaml">
+	  <Generator>MSBuild:Compile</Generator>
+	</EmbeddedResource>
+  </ItemGroup>
+
+ <ItemGroup>
 	<PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.9.2092" PrivateAssets="all" />
 	<PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.9.2092" PrivateAssets="all" />
   </ItemGroup>

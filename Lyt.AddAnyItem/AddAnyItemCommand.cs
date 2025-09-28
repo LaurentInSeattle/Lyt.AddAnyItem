@@ -87,6 +87,13 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 return;
             }
 
+            // Ownership of the RemoteUserControl is transferred to VisualStudio, so it should not be disposed by the extension
+#pragma warning disable CA2000 // Dispose objects before losing scope
+            var control = new AddAnyItemDialog(dataContext: null);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
+            await this.Extensibility.Shell().ShowDialogAsync(control, cancellationToken);
+
             // TODO: Launch dialog to get the Item kind and name, hardcoded for now 
             string selectedItemKind = "Avalonia View ViewModel";
             string selectedItemName = "Shell";
