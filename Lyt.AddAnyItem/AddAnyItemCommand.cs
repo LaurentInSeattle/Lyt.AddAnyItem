@@ -1,6 +1,6 @@
 ﻿namespace Lyt.AddAnyItem;
 
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using Microsoft.VisualStudio.RpcContracts.Notifications;
 
 /// <summary> AddAnyItemCommand handler. </summary>
 /// <remarks> Initializes a new instance of the <see cref="AddAnyItemCommand"/> class. </remarks>
@@ -10,10 +10,9 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 #pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW 
 public class AddAnyItemCommand(TraceSource traceSource) : Command
 {
-    private const string OrgFolderName = "Lyt";
-    private const string TemplatesFolderName = "AddAnyItem";
+    public const string TemplateNameKey = "{Name}";
+
     private const string GeneratedFolderName = "Generated";
-    private const string TemplateNameKey = "{Name}";
     private const string TemplateNamespaceKey = "{Namespace}";
 
     private static readonly Guid ContextMenuGuid = new("{d309f791-903f-11d0-9efc-00a0c911004f}");
@@ -21,6 +20,8 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
     private readonly TraceSource logger = Requires.NotNull(traceSource, nameof(traceSource));
 
     private OutputWindow? outputWindow;
+
+    private string TemplatesFolderPath { get; set; } = string.Empty;
 
     /// <inheritdoc />
     public override CommandConfiguration CommandConfiguration =>
@@ -80,23 +81,23 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 return;
             }
 
-            List<string> templateNames = EnumerateExistingTemplateFolders(out string message);
-            if (templateNames.Count == 0)
+            // Ownership of the RemoteUserControl is transferred to VisualStudio,
+            // so it should not be disposed by the extension
+            var control = new AddAnyItemDialog(dataContext: null);
+            string title = "Add Templates";
+            DialogResult dialogResult = 
+                await this.Extensibility.Shell().ShowDialogAsync(control, title, DialogOption.OKCancel, cancellationToken);
+            if (dialogResult == DialogResult.Cancel)
             {
-                await this.OutputWriteLineAsync("Add Any Item Aborted: " + message);
+                await this.OutputWriteLineAsync("Add Any Item Cancelled" );
                 return;
             }
 
-            // Ownership of the RemoteUserControl is transferred to VisualStudio, so it should not be disposed by the extension
-#pragma warning disable CA2000 // Dispose objects before losing scope
-            var control = new AddAnyItemDialog(dataContext: null);
-#pragma warning restore CA2000 // Dispose objects before losing scope
+            string selectedItemKind = control.SelectedItemKind;
+            string selectedItemName = control.SelectedItemName;
 
-            await this.Extensibility.Shell().ShowDialogAsync(control, cancellationToken);
-
-            // TODO: Launch dialog to get the Item kind and name, hardcoded for now 
-            string selectedItemKind = "Avalonia View ViewModel";
-            string selectedItemName = "Shell";
+            selectedItemKind = "Avalonia View ViewModel";
+            selectedItemName = "Shell";
 
             bool filesGenerated = await this.GenerateFilesFromTemplatesAsync(projectInfo, selectedItemKind, selectedItemName);
             if (!filesGenerated)
@@ -107,7 +108,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
 
             string destinationProjectPath = projectInfo.SelectedDirectory;
 
-            // Add the newly created source files to the destination project.
+            // Add a newly created source files to the selected project.
             async Task AddSourceFileAsync(string sourceFilePath)
             {
                 FileInfo fileInfo = new(sourceFilePath);
@@ -248,68 +249,6 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
         return projectInfo;
     }
 
-    private static List<string> EnumerateExistingTemplateFolders(out string message)
-    {
-        message = string.Empty;
-        List<string> empty = [];
-        List<string> templateFolders = [];
-        try
-        {
-            // Make sure we have a templates folder 
-            string documentsFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-            string orgFolderPath = Path.Combine(documentsFolderPath, OrgFolderName);
-            string templatesFolderPath = Path.Combine(orgFolderPath, TemplatesFolderName);
-            DirectoryInfo templatesDirectoryInfo = new(templatesFolderPath);
-            if (!templatesDirectoryInfo.Exists)
-            {
-                message = "EnumerateExistingTemplateFolders: No templates folder";
-                return empty;
-            }
-
-            // Enumerate directories 
-            List<string> directoryPaths = templatesFolderPath.EnumerateDirectories();
-            EnumerationOptions enumerationOptions = new()
-            {
-                IgnoreInaccessible = true,
-                RecurseSubdirectories = false,
-            };
-
-            foreach (string directoryPath in directoryPaths)
-            {
-                // Assuminf that we have too few files to bother with creating threads 
-                // Enumerate files and Make sure that there is at least one template file
-                var files = directoryPath.EnumerateFiles(enumerationOptions);
-                int validTemplateFilesCount = 0;
-                foreach (string file in files)
-                {
-                    if (file.Contains(TemplateNameKey, StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        ++validTemplateFilesCount;
-                    }
-                }
-
-                if (validTemplateFilesCount > 0)
-                {
-                    DirectoryInfo directoryPathInfo = new(directoryPath);
-                    templateFolders.Add(directoryPathInfo.Name);
-                }
-            }
-
-            if (templateFolders.Count == 0)
-            {
-                message = "EnumerateExistingTemplateFolders: No valid templates \n";
-                return empty;
-            }
-
-            return templateFolders;
-        }
-        catch (Exception ex)
-        {
-            message = "EnumerateExistingTemplateFolders: Exception thrown: \n" + ex.ToString();
-            return empty;
-        }
-    }
-
     private async Task<bool> GenerateFilesFromTemplatesAsync(
         ProjectInformation projectInformation,
         string selectedItemKind,
@@ -325,11 +264,8 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
 
         try
         {
-            // 1 - Make sure maybe again we have a templates folder 
-            string documentsFolder = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-            string orgFolder = Path.Combine(documentsFolder, OrgFolderName);
-            string templatesFolder = Path.Combine(orgFolder, TemplatesFolderName);
-            DirectoryInfo templatesDirectory = new(templatesFolder);
+            // 1 - Make sure (maybe again) we have a templates folder 
+            DirectoryInfo templatesDirectory = new(this.TemplatesFolderPath);
             if (!templatesDirectory.Exists)
             {
                 await this.OutputWriteLineAsync("GenerateFilesFromTemplates: No templates folder");
@@ -337,7 +273,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             }
 
             // 2 - Make sure we have a folder for the selected kind
-            string selectedItemKindFolder = Path.Combine(templatesFolder, selectedItemKind);
+            string selectedItemKindFolder = Path.Combine(this.TemplatesFolderPath, selectedItemKind);
             DirectoryInfo selectedItemKindDirectory = new(selectedItemKindFolder);
             if (!selectedItemKindDirectory.Exists)
             {
