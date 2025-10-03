@@ -11,6 +11,10 @@ global using Microsoft;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.ServiceHub.Framework;
 
+global using CommunityToolkit.Mvvm.ComponentModel;
+global using CommunityToolkit.Mvvm.Input;
+global using CommunityToolkit.Mvvm.Messaging;
+
 global using Microsoft.VisualStudio.Extensibility;
 global using Microsoft.VisualStudio.Extensibility.Commands;
 global using Microsoft.VisualStudio.Extensibility.Documents;

@@ -11,6 +11,7 @@ using Microsoft.VisualStudio.RpcContracts.Notifications;
 public class AddAnyItemCommand(TraceSource traceSource) : Command
 {
     public const string TemplateNameKey = "{Name}";
+    public const string CommandDisplayName = "Add Any Item";
 
     private const string GeneratedFolderName = "Generated";
     private const string TemplateNamespaceKey = "{Namespace}";
@@ -19,7 +20,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
 
     private readonly TraceSource logger = Requires.NotNull(traceSource, nameof(traceSource));
 
-    private OutputWindow? outputWindow;
+    private OutputChannel? outputWindow;
 
     private string TemplatesFolderPath { get; set; } = string.Empty;
 
@@ -45,7 +46,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
     public override async Task InitializeAsync(CancellationToken cancellationToken)
     {
         // Use InitializeAsync for any one-time setup or initialization.
-        this.outputWindow = await this.Extensibility.Views().Output.GetChannelAsync("Add Any Item", "Add Any Item", cancellationToken);
+        this.outputWindow = await this.Extensibility.Views().Output.CreateOutputChannelAsync(CommandDisplayName, cancellationToken);
         if (this.outputWindow is null)
         {
             Debug.WriteLine("Failed to open output window");
@@ -83,7 +84,8 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
 
             // Ownership of the RemoteUserControl is transferred to VisualStudio,
             // so it should not be disposed by the extension
-            var control = new AddAnyItemDialog(dataContext: null);
+            var dataContext = new AddItemDialogModel(); 
+            var control = new AddAnyItemDialog(dataContext);
             string title = "Add Templates";
             DialogResult dialogResult = 
                 await this.Extensibility.Shell().ShowDialogAsync(control, title, DialogOption.OKCancel, cancellationToken);
@@ -93,8 +95,8 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 return;
             }
 
-            string selectedItemKind = control.SelectedItemKind;
-            string selectedItemName = control.SelectedItemName;
+            string selectedItemKind = dataContext.SelectedItemKind;
+            string selectedItemName = dataContext.SelectedItemName;
 
             selectedItemKind = "Avalonia View ViewModel";
             selectedItemName = "Shell";
@@ -210,6 +212,18 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             cancellationToken);
         foreach (var project in projects)
         {
+            if (project is null)
+            {
+                await this.OutputWriteLineAsync("Project not found: " + selectedPath);
+                return projectInfo;
+            }
+
+            if (string.IsNullOrWhiteSpace(project.Path))
+            {
+                await this.OutputWriteLineAsync("No Path for Project: " + selectedPath);
+                return projectInfo;
+            }
+
             _ = message.Append(CultureInfo.CurrentCulture, $"{project.Name} \t {project.Path}\n");
             FileInfo projectFileInfo = new(project.Path);
             if (!projectFileInfo.Exists)
@@ -227,7 +241,15 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             {
                 projectInfo.ProjectFolder = projectFolderPath;
                 projectInfo.ProjectName = project.Name;
-                projectInfo.ProjectNamespace = project.DefaultNamespace;
+                if (string.IsNullOrWhiteSpace(project.DefaultNamespace))
+                {
+                    projectInfo.ProjectNamespace = project.Name;
+                }
+                else
+                {
+                    projectInfo.ProjectNamespace = project.DefaultNamespace;
+                }
+                
                 foundProject = true;
                 break;
             }
