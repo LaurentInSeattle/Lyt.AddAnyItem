@@ -1,18 +1,34 @@
-﻿namespace Lyt.AddAnyItem; 
+﻿namespace Lyt.AddAnyItem;
 
-public sealed partial class AddItemDialogModel : ObservableObject
+[DataContract]
+public partial class AddItemDialogModel
 {
     private const string OrgFolderName = "Lyt";
     private const string TemplatesFolderName = "AddAnyItem";
 
-    [ObservableProperty]
-    private string selectedFolderText;
+    [DataMember]
+    public string SelectedFolderText { get; set; }
 
-    [ObservableProperty]
-    private string selectedItemText;
+    [DataMember]
+    public ObservableList<string> Names { get; set; } = [];
 
-    [ObservableProperty]
-    private string message ;
+    [DataMember]
+    public string SelectedItemKind { get; set; }
+
+    [DataMember]
+    public string SelectedItemName { get; set; }
+
+    [DataMember]
+    public string Message { get; set; }
+
+    [DataMember]
+    public AsyncCommand ChangeFolderCommand { get; }
+
+    [DataMember]
+    public AsyncCommand SelectionChangedCommand { get; }
+
+    [DataMember]
+    public AsyncCommand TextChangedCommand { get; }
 
     public string TemplatesFolderPath { get; private set; } = string.Empty;
 
@@ -20,17 +36,27 @@ public sealed partial class AddItemDialogModel : ObservableObject
 
     public AddItemDialogModel()
     {
+        this.ChangeFolderCommand = new AsyncCommand((parameter, context, cancellationToken) =>
+        {
+            return Task.CompletedTask;
+        });
+
+        this.SelectionChangedCommand = new AsyncCommand((parameter, context, cancellationToken) =>
+        {
+            return Task.CompletedTask;
+        });
+
+        this.TextChangedCommand = new AsyncCommand((parameter, context, cancellationToken) =>
+        {
+            return Task.CompletedTask;
+        });
+
         this.Message = string.Empty;
         this.SelectedFolderText = string.Empty;
-        this.SelectedItemText = string.Empty;
         this.SelectedItemKind = string.Empty;
         this.SelectedItemName = string.Empty;
         this.Populate();
     }
-
-    public string SelectedItemKind { get; private set;  }
-
-    public string SelectedItemName { get; private set;  }
 
     public void Populate()
     {
@@ -38,6 +64,7 @@ public sealed partial class AddItemDialogModel : ObservableObject
         string orgFolderPath = Path.Combine(this.FolderPath, OrgFolderName);
         this.TemplatesFolderPath = Path.Combine(orgFolderPath, TemplatesFolderName);
         this.SelectedFolderText = this.TemplatesFolderPath;
+        this.PopulateTemplateFoldersComboBox(); 
     }
 
     private void PopulateTemplateFoldersComboBox()
@@ -48,6 +75,8 @@ public sealed partial class AddItemDialogModel : ObservableObject
             this.Message = message;
             return;
         }
+
+        this.Names = new ObservableList<string>(templateNames);
     }
 
     private List<string> EnumerateExistingTemplateFolders(out string message)
