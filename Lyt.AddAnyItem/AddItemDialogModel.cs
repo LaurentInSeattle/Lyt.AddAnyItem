@@ -22,6 +22,9 @@ public partial class AddItemDialogModel
     public string SelectedItemKind { get; set; }
 
     [DataMember]
+    public int SelectedIndexKind { get; set; }
+
+    [DataMember]
     public string SelectedItemName { get; set; }
 
     [DataMember]
@@ -102,7 +105,7 @@ public partial class AddItemDialogModel
             }
 
             this.TemplatesFolderPath = folderPath;
-            //this.Populate(); 
+            this.Populate(); 
         }
     }
 
@@ -116,6 +119,7 @@ public partial class AddItemDialogModel
         }
 
         this.Names = new ObservableList<string>(templateNames);
+        this.SelectedIndexKind = 0; 
     }
 
     private List<string> EnumerateExistingTemplateFolders(out string message)

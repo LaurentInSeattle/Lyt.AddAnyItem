@@ -9,11 +9,8 @@
 		x:Name="RootGrid"
 		MinWidth="420"
 		Margin="6 8 6 8"
-		ShowGridLines="False"
-		Background="#202030"
 		>
 		<Grid.Resources>
-			<Style TargetType="ListView" BasedOn="{StaticResource {x:Static styles:VsResourceKeys.ThemedDialogListViewStyleKey}}" />
 			<Style TargetType="Button" BasedOn="{StaticResource {x:Static styles:VsResourceKeys.ButtonStyleKey}}" />
 			<Style TargetType="TextBlock">
 				<Setter Property="Foreground" Value="{DynamicResource {x:Static styles:VsBrushes.WindowTextKey}}" />
@@ -37,11 +34,13 @@
 			Text="Selected Folder: " 
 			VerticalAlignment="Center"
 			/>
+		<!-- Disabled : Bug in VS Extension FX -->
 		<Button
 			Grid.Row="0" Grid.Column="1"
 			Height="28"
 			Margin="4"
 			Content="Change..."
+			IsEnabled="False"
 			>
 			<vs:ExtensibilityUICommands.EventHandlers>
 				<vs:EventHandlerCollection>
@@ -60,6 +59,7 @@
 			Height="28"
 			Text="{Binding SelectedFolderText}"
 			VerticalAlignment="Center"
+			VerticalContentAlignment="Center"
 			/>
 		<TextBlock   
 			Grid.Row="2" Grid.Column="0"
@@ -74,19 +74,8 @@
 			VerticalAlignment="Center"
 			ItemsSource="{Binding Names}"
 			SelectedItem="{Binding SelectedItemKind}"
-			>
-			<!--
-			<vs:EventHandlerCollection>
-				<vs:EventHandler
-					Event="SelectionChanged"
-					Command="{Binding DataContext.SelectionChangedCommand, ElementName=RootGrid}"
-					CommandParameter="{Binding SelectedItem, ElementName=TemplatesComboBox}"
-					CounterTarget="{Binding RelativeSource={RelativeSource Self}}"
-					/>
-			</vs:EventHandlerCollection>
-
-			-->
-		</ComboBox>
+			SelectedIndex="{Binding SelectedIndexKind}"
+			/>
 		<TextBlock   
 			Grid.Row="4" Grid.Column="0" 
 			Margin="4 0 0 0"
@@ -102,16 +91,6 @@
 			VerticalContentAlignment="Center"
 			Text="{Binding SelectedItemName}"
 			>
-			<!--
-			<vs:EventHandlerCollection>
-				<vs:EventHandler
-					Event="TextChanged"
-					Command="{Binding DataContext.TextChangedCommand, ElementName=RootGrid}"
-					CommandParameter="{Binding}"
-					CounterTarget="{Binding RelativeSource={RelativeSource Self}}"
-					/>
-			</vs:EventHandlerCollection>
-			-->
 		</TextBox>
 	</Grid>
 </DataTemplate>
