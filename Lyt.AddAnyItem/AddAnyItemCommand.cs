@@ -40,6 +40,10 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 // CommandPlacement.VsctParent(ContextMenuGuid, id: 537, priority: 0), // Solution context menu
                 // CommandPlacement.KnownPlacements.ExtensionsMenu
             ],
+            // EnabledWhen
+             // Flags = CommandFlags.
+             // EnabledWhen = new ActivationConstraint().
+              
         };
 
     /// <inheritdoc />
@@ -84,9 +88,9 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
 
             // Ownership of the RemoteUserControl is transferred to VisualStudio,
             // so it should not be disposed by the extension
-            var dataContext = new AddItemDialogModel(); 
+            var dataContext = new AddItemDialogModel(this); 
             var control = new AddAnyItemDialog(dataContext);
-            string title = "Add Templates";
+            string title = "Add Any Item...";
             DialogResult dialogResult = 
                 await this.Extensibility.Shell().ShowDialogAsync(control, title, DialogOption.OKCancel, cancellationToken);
             if (dialogResult == DialogResult.Cancel)

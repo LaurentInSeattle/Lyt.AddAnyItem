@@ -1,10 +1,16 @@
 ﻿namespace Lyt.AddAnyItem;
 
+using Microsoft.VisualStudio.Extensibility.Shell.FileDialog;
+using Microsoft.Win32;
+using System.Threading;
+
 [DataContract]
 public partial class AddItemDialogModel
 {
     private const string OrgFolderName = "Lyt";
     private const string TemplatesFolderName = "AddAnyItem";
+
+    private readonly AddAnyItemCommand addAnyItemCommand; 
 
     [DataMember]
     public string SelectedFolderText { get; set; }
@@ -34,11 +40,16 @@ public partial class AddItemDialogModel
 
     public string FolderPath { get; private set; } = string.Empty;
 
-    public AddItemDialogModel()
+    public AddItemDialogModel(AddAnyItemCommand addAnyItemCommand)
     {
-        this.ChangeFolderCommand = new AsyncCommand((parameter, context, cancellationToken) =>
+        this.addAnyItemCommand = addAnyItemCommand;
+
+        this.ChangeFolderCommand = new AsyncCommand(async (parameter, context, cancellationToken) =>
         {
-            return Task.CompletedTask;
+            if ( parameter is AddItemDialogModel addItemDialogModel)
+            {
+                await addItemDialogModel.SelectFolderAsync(cancellationToken); 
+            }
         });
 
         this.SelectionChangedCommand = new AsyncCommand((parameter, context, cancellationToken) =>
@@ -55,16 +66,44 @@ public partial class AddItemDialogModel
         this.SelectedFolderText = string.Empty;
         this.SelectedItemKind = string.Empty;
         this.SelectedItemName = string.Empty;
+
+        this.FolderPath = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
+        string orgFolderPath = Path.Combine(this.FolderPath, OrgFolderName);
+        this.TemplatesFolderPath = Path.Combine(orgFolderPath, TemplatesFolderName);
+
         this.Populate();
     }
 
     public void Populate()
     {
-        this.FolderPath = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-        string orgFolderPath = Path.Combine(this.FolderPath, OrgFolderName);
-        this.TemplatesFolderPath = Path.Combine(orgFolderPath, TemplatesFolderName);
         this.SelectedFolderText = this.TemplatesFolderPath;
         this.PopulateTemplateFoldersComboBox(); 
+    }
+
+    private async Task SelectFolderAsync(CancellationToken cancellationToken)
+    {
+        string personalFolder = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
+        FolderDialogOptions options = new()
+        {
+             InitialDirectory = personalFolder,
+             Title = "Select a directory containing templates..."
+        };
+
+        string? folderPath = 
+            await this.addAnyItemCommand.Extensibility.Shell().ShowOpenFolderDialogAsync(options, cancellationToken);
+        Debug.WriteLine($"Selected folder path: {folderPath ?? "No selection"}");
+        if (!string.IsNullOrWhiteSpace(folderPath) )
+        {
+            // For the rare case of user or someone delete the selected folder 
+            DirectoryInfo folderPathDirectoryInfo = new(folderPath);
+            if (!folderPathDirectoryInfo.Exists)
+            {
+                return;
+            }
+
+            this.TemplatesFolderPath = folderPath;
+            //this.Populate(); 
+        }
     }
 
     private void PopulateTemplateFoldersComboBox()
