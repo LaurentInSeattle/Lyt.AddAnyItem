@@ -15,6 +15,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
 
     private const string GeneratedFolderName = "Generated";
     private const string TemplateNamespaceKey = "{Namespace}";
+    private const string NamespaceSeparator = ".";
 
     private static readonly Guid ContextMenuGuid = new("{d309f791-903f-11d0-9efc-00a0c911004f}");
 
@@ -40,10 +41,6 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 // CommandPlacement.VsctParent(ContextMenuGuid, id: 537, priority: 0), // Solution context menu
                 // CommandPlacement.KnownPlacements.ExtensionsMenu
             ],
-            // EnabledWhen
-             // Flags = CommandFlags.
-             // EnabledWhen = new ActivationConstraint().
-              
         };
 
     /// <inheritdoc />
@@ -88,22 +85,27 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
 
             // Ownership of the RemoteUserControl is transferred to VisualStudio,
             // so it should not be disposed by the extension
-            var dataContext = new AddItemDialogModel(this); 
+            var dataContext = new AddItemDialogModel(this);
             var control = new AddAnyItemDialog(dataContext);
             string title = "Add Any Item...";
-            DialogResult dialogResult = 
+            DialogResult dialogResult =
                 await this.Extensibility.Shell().ShowDialogAsync(control, title, DialogOption.OKCancel, cancellationToken);
             if (dialogResult == DialogResult.Cancel)
             {
-                await this.OutputWriteLineAsync("Add Any Item Cancelled" );
+                await this.OutputWriteLineAsync("Add Any Item Cancelled");
                 return;
             }
 
+            this.TemplatesFolderPath = dataContext.TemplatesFolderPath;
             string selectedItemKind = dataContext.SelectedItemKind;
-            string selectedItemName = dataContext.SelectedItemName;
-
-            selectedItemKind = "Avalonia View ViewModel";
-            selectedItemName = "Shell";
+            string selectedItemName = Capitalize(dataContext.SelectedItemName);
+            if (string.IsNullOrWhiteSpace(this.TemplatesFolderPath) ||
+                string.IsNullOrWhiteSpace(selectedItemKind) ||
+                string.IsNullOrWhiteSpace(selectedItemName))
+            {
+                await this.OutputWriteLineAsync("Add Any Item Aborted: Incomplete data");
+                return;
+            }
 
             bool filesGenerated = await this.GenerateFilesFromTemplatesAsync(projectInfo, selectedItemKind, selectedItemName);
             if (!filesGenerated)
@@ -177,7 +179,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 DirectoryInfo? directory = fileInfo.Directory;
                 if (directory is not null && directory.Exists)
                 {
-                    projectInfo.SelectedDirectory = selectedPath;
+                    projectInfo.SelectedDirectory = directory.FullName;
                     foundTargetDirectory = true;
                 }
             }
@@ -253,7 +255,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
                 {
                     projectInfo.ProjectNamespace = project.DefaultNamespace;
                 }
-                
+
                 foundProject = true;
                 break;
             }
@@ -281,6 +283,7 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
         string selectedItemName)
     {
         if (!projectInformation.IsValid ||
+            string.IsNullOrWhiteSpace(this.TemplatesFolderPath) ||
             string.IsNullOrWhiteSpace(selectedItemKind) ||
             string.IsNullOrWhiteSpace(selectedItemName))
         {
@@ -341,13 +344,15 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             // 5  - Create a new "fresh" folder for generated files 
             Directory.CreateDirectory(selectedItemGeneratedFolder);
 
-            // 6 - Generate files 
+            // 6 - Generate namespaceString 
+            string namespaceString = GenerateNamespaceString(projectInformation);
+            // TODO: Add folders to name space 
+
+            // 7 - Generate files 
             string GenerateFileFromTemplate(string sourceFile)
             {
                 string sourceText = File.ReadAllText(sourceFile);
                 string targetText = sourceText.Replace(TemplateNameKey, selectedItemName);
-                string namespaceString = projectInformation.ProjectNamespace;
-                // TODO: Add folder to name space 
                 targetText = targetText.Replace(TemplateNamespaceKey, namespaceString);
 
                 FileInfo fileInfo = new(sourceFile);
@@ -384,6 +389,28 @@ public class AddAnyItemCommand(TraceSource traceSource) : Command
             return false;
         }
     }
+
+    private static string GenerateNamespaceString(ProjectInformation pi)
+    {
+        string subpath = pi.SelectedDirectory.Replace(pi.ProjectFolder.ToLower(), string.Empty);
+        string[] tokens = 
+            subpath.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string namespaceString = pi.ProjectNamespace;
+        foreach (string token in tokens)
+        {
+            namespaceString = string.Concat(namespaceString, NamespaceSeparator, Capitalize(token));
+        }
+
+        return namespaceString;
+    }
+
+    private static string Capitalize(string input) =>
+        input switch
+        {
+            null => throw new ArgumentNullException(nameof(input)),
+            "" => throw new ArgumentException($"{nameof(input)} cannot be empty", nameof(input)),
+            _ => string.Concat(input[0].ToString().ToUpper(), input.AsSpan(1))
+        };
 
     private async Task OutputWriteLineAsync(string message)
     {
