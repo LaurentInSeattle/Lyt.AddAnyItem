@@ -4,7 +4,13 @@ Visual Studio 2022 and 2026 Extension allowing users to add any kind of custom i
 # Notes 
 - Only for Visual Studio 2022 and 2026 as this extension uses the new Visual Studio Extensibilty API.
 - Not available through Visual Studio "marketplace". 
-- Still many bugs in the VS Extensibility framework, some preventing adding some much needed functionality!
+- Still many bugs in the new Visual Studio Extensibility framework, some preventing adding some much needed functionality!
+
+# Issues ~ Stuff barely works...
+- Cannot add a Build Action
+- Does not open new files in the Editor
+- Launching a folder browser from a modal dialog crashes Visual Studio
+- Samples are broken 
    
 # How To
 - Clone this repo, build the extension, locate the VSIX and install it into Visual Studio.
